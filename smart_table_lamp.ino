@@ -4,16 +4,18 @@
 #define MQTT_VERSION MQTT_VERSION_3_1_1
 
 // Wifi: SSID and password
-const char* WIFI_SSID = "404 Not Found";
-const char* WIFI_PASSWORD = "Lan010302";
+const char* WIFI_SSID = "404 Not Found";  // 你的wifi名字
+const char* WIFI_PASSWORD = "xxxxxxx";    // 你的wifi密码
 
 // MQTT: ID, server IP, port, username and password
-const PROGMEM char* MQTT_CLIENT_ID = "mqttx_tablelamp001";
-const PROGMEM char* MQTT_SERVER_IP = "192.168.2.167";
-const PROGMEM uint16_t MQTT_SERVER_PORT = 1883;
-const PROGMEM char* MQTT_USER = "admin";
-const PROGMEM char* MQTT_PASSWORD = "lan010302";
+const PROGMEM char* MQTT_CLIENT_ID = "mqttx_tablelamp001";   // mqtt的用户id，可以不改
+const PROGMEM char* MQTT_SERVER_IP = "192.168.2.167";        // mqtt服务器地址
+const PROGMEM uint16_t MQTT_SERVER_PORT = 1883;              // mqtt服务器端口，默认1883
+const PROGMEM char* MQTT_USER = "admin";                     // mqtt账号
+const PROGMEM char* MQTT_PASSWORD = "xxxxxxx";               // mqtt密码
 
+// homeassistant的light类，开关、亮度、色温要用不同的主题，分别要一个state主题和一个command主题，用来上报信息和接收信息
+// 可参考 https://home-assistant-china.github.io/components/light.mqtt/
 // MQTT: topics
 // state
 const PROGMEM char* MQTT_LIGHT_STATE_TOPIC = "homeassistant/tablelamp/light/status";
