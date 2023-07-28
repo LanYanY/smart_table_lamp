@@ -16,6 +16,7 @@ const PROGMEM char* MQTT_PASSWORD = "xxxxxxx";               // mqtt密码
 
 // homeassistant的light类，开关、亮度、色温要用不同的主题，分别要一个state主题和一个command主题，用来上报信息和接收信息
 // 可参考 https://home-assistant-china.github.io/components/light.mqtt/
+
 // MQTT: topics
 // state
 const PROGMEM char* MQTT_LIGHT_STATE_TOPIC = "homeassistant/tablelamp/light/status";
@@ -34,9 +35,12 @@ const PROGMEM char* LIGHT_ON = "ON";
 const PROGMEM char* LIGHT_OFF = "OFF";
 
 // variables used to store the state, the brightness and the color of the light
-boolean m_light_state = false;
-uint8_t m_light_brightness = 255;
-uint32_t m_light_colortemp = 300;
+boolean m_light_state = true;
+int32_t m_light_brightness = 128;
+int32_t m_light_colortemp = 300;
+int32_t temp_brightness = 0;
+int32_t temp_colortemp = 153;
+const uint8_t delay_time = 2;   //渐变延时，值越大灯光切换时的变化速度越慢
 
 // pins used for the rgb led (PWM)
 const PROGMEM uint8_t RGB_LIGHT_PIN_0 = D0;
@@ -50,10 +54,53 @@ WiFiClient wifiClient;
 PubSubClient client(wifiClient);
 
 // function called to adapt the brightness and the color of the led
-void setColorTemp(uint32_t p_colortemp, uint8_t p_brightness) 
+void setColorTemp(int32_t p_colortemp, int32_t p_brightness) 
 {
-  analogWrite(RGB_LIGHT_PIN_0, (255 - map(p_colortemp, 153, 500, 0, 255)) * p_brightness / 255);
-  analogWrite(RGB_LIGHT_PIN_1, map(p_colortemp, 153, 500, 0, 255) * p_brightness / 255);
+  int32_t i;
+  Serial.print("Set colortemp:");
+  Serial.print(p_colortemp);
+  Serial.print("    Set brightness:");
+  Serial.println(p_brightness);
+
+  if(p_brightness > temp_brightness)
+  {
+    for(i = temp_brightness; i <= p_brightness; i++)
+    {
+      analogWrite(RGB_LIGHT_PIN_0, (255 - map(p_colortemp, 153, 500, 0, 255)) * i / 255);
+      analogWrite(RGB_LIGHT_PIN_1, map(p_colortemp, 153, 500, 0, 255) * i / 255);
+      delay(delay_time);
+    }
+  }
+  else if(p_brightness < temp_brightness)
+  {
+    for(i = temp_brightness; i >= p_brightness; i--)
+    {
+      analogWrite(RGB_LIGHT_PIN_0, (255 - map(p_colortemp, 153, 500, 0, 255)) * i / 255);
+      analogWrite(RGB_LIGHT_PIN_1, map(p_colortemp, 153, 500, 0, 255) * i / 255);
+      delay(delay_time);
+    }
+  }
+  if(p_colortemp > temp_colortemp)
+  {
+    for(i = temp_colortemp; i <= p_colortemp; i++)
+    {
+      analogWrite(RGB_LIGHT_PIN_0, (255 - map(i, 153, 500, 0, 255)) * p_brightness / 255);
+      analogWrite(RGB_LIGHT_PIN_1, map(i, 153, 500, 0, 255) * p_brightness / 255);
+      delay(delay_time);
+    }
+  }
+  else if(p_colortemp < temp_colortemp)
+  {
+    for(i = temp_colortemp; i >= p_colortemp; i--)
+    {
+      analogWrite(RGB_LIGHT_PIN_0, (255 - map(i, 153, 500, 0, 255)) * p_brightness / 255);
+      analogWrite(RGB_LIGHT_PIN_1, map(i, 153, 500, 0, 255) * p_brightness / 255);
+      delay(delay_time);
+    }
+  }
+  temp_brightness = p_brightness;
+  temp_colortemp = p_colortemp;
+
 }
 
 // function called to publish the state of the led (on/off)
@@ -72,12 +119,16 @@ void publishLightState()
 void publishLightBrightness() 
 {
   snprintf(m_msg_buffer, MSG_BUFFER_SIZE, "%d", m_light_brightness);
+  Serial.print("Send:");
+  Serial.println(m_msg_buffer);
   client.publish(MQTT_LIGHT_BRIGHTNESS_STATE_TOPIC, m_msg_buffer, true);
 }
 
 // function called to publish the colors of the led (xx(x),xx(x),xx(x))
 void publishLightColorTemp() {
   snprintf(m_msg_buffer, MSG_BUFFER_SIZE, "%d", m_light_colortemp);
+  Serial.print("Send:");
+  Serial.println(m_msg_buffer);
   client.publish(MQTT_LIGHT_COLORTEMP_STATE_TOPIC, m_msg_buffer, true);
 }
 
@@ -93,6 +144,7 @@ void callback(char* p_topic, byte* p_payload, unsigned int p_length)
   // handle message topic
   if (String(MQTT_LIGHT_COMMAND_TOPIC).equals(p_topic)) 
   {
+    Serial.print("Recv:");
     Serial.println(payload);
     // test if the payload is equal to "ON" or "OFF"
     if (payload.equals(String(LIGHT_ON))) 
@@ -114,8 +166,9 @@ void callback(char* p_topic, byte* p_payload, unsigned int p_length)
     }
   } else if (String(MQTT_LIGHT_BRIGHTNESS_COMMAND_TOPIC).equals(p_topic)) 
   {
+    Serial.print("Recv:");
     Serial.println(payload);
-    uint8_t brightness = payload.toInt();
+    int32_t brightness = payload.toInt();
     if (brightness < 0 || brightness > 255) 
     {
       // do nothing...
@@ -129,8 +182,9 @@ void callback(char* p_topic, byte* p_payload, unsigned int p_length)
   } else if (String(MQTT_LIGHT_COLORTEMP_COMMAND_TOPIC).equals(p_topic)) 
   {
     // get the position of the first and second commas
+    Serial.print("Recv:");
     Serial.println(payload);
-    uint32_t colortemp = payload.toInt();
+    int32_t colortemp = payload.toInt();
     if (colortemp < 153 || colortemp > 500) 
     {
       return;
@@ -177,11 +231,9 @@ void setup() {
   Serial.begin(115200);
 
   // init the RGB led
-  pinMode(RGB_LIGHT_PIN_0, OUTPUT);
-  pinMode(RGB_LIGHT_PIN_1, OUTPUT);
   analogWriteRange(255);
   analogWriteFreq(40000);
-  setColorTemp(153, 0);
+  setColorTemp(m_light_colortemp, m_light_brightness);
 
   // init the WiFi connection
   Serial.println();
